@@ -68,6 +68,7 @@ calibs <- lapply(names(splitintervalCases), function(provinceName){
   pars <- update(pars, c(N = pops[[provinceName]], E0 = initialvalswave2[[provinceName]]))
   ##E0 should be the number of cumulative reports at that date.
   ##Use epigrowthfit to estimate R0 and then fix the parameter file for each province to match that estimated rate from the data.
+  data(covid_generation_interval)
   pars <- fix_pars(pars, target = c(R0 = compute_R0(egf(egf_init(date = provincereport$date, cases = provincereport$value)), breaks =  covid_generation_interval$breaks, probs = covid_generation_interval$probs), Gbar = 6))
   ##So we can see what's going on.
   print(paste0("now calibrating ", provinceName))
