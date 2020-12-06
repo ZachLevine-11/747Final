@@ -10,7 +10,6 @@ library("ggplot2")
 allcases <- read.csv("mikelidata.csv")
 ##Set the start date to whatever we want it to be.
 startdate <- anytime::anydate("2020-08-15")
-##Province R0s from PHAC.
 ##Province population sizes to use in calibration
 pops <- c("AB" = 4421876, "BC" = 5147712, "ON" = 14734000, "SK" = 1178681, "MB" = 1379263, "QC" = 8574571)
 ##Strip out the provinces we don't want, leaving only the ones Mike used.
@@ -62,8 +61,34 @@ initialvalswave2 <- lapply(names(splitintervalCases), function(provinceName){
 })
 names(initialvalswave2) <- names(splitintervalCases)
 pars <- read_params("ICU1.csv")
+
+##Mike Li method.
+goodcalibs <- lapply(names(splitintervalCases), function(provinceName){
+  provincereport <-  splitintervalCases[[provinceName]]
+  ##E0 should be the number of cumulative reports at that date.
+  ##Use epigrowthfit to estimate R0 and then fix the parameter file for each province to match that estimated rate from the data.
+  data(covid_generation_interval)
+  pars <- fix_pars(pars, target = c(R0 = compute_R0(egf(egf_init(date = provincereport$date, cases = provincereport$value)), breaks =  covid_generation_interval$breaks, probs = covid_generation_interval$probs), Gbar = 6))
+  pars <- update(pars, c(N = pops[[provinceName]], E0 = initialvalswave2[[provinceName]]))
+  ##So we can see what's going on.
+  print(paste0("now calibrating ", provinceName))
+  ##Rigged based on the calibration to Ontario in https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
+  optpars <- list(params = c(log_E0 = 2, log_beta0 = -1, logit_phi1 = -1), log_nb_disp=c(report=1, death=1, H=1)) 
+  calibrate(base_params = pars,
+            data = provincereport,
+            debug_plot = FALSE,
+            ##based on the calibration to ontario in https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
+            sim_args = list(ndt = 1, ratemat_args = list(testing_time = "report")),
+            time_args = list(break_dates = NULL),
+            opt_pars = optpars)
+})
+names(goodcalibs) <- names(splitintervalCases)
+##Save a calibration so we don't have to run it again to get the same results.
+
+##Our method that is not as goood.
+pars <- read_params("ICU1.csv")
 ##Calibrate each province based on that provinces reported cases and the same set of base parameters.
-calibs <- lapply(names(splitintervalCases), function(provinceName){
+badcalibs <- lapply(names(splitintervalCases), function(provinceName){
   provincereport <-  splitintervalCases[[provinceName]]
   pars <- update(pars, c(N = pops[[provinceName]], E0 = initialvalswave2[[provinceName]]))
   ##E0 should be the number of cumulative reports at that date.
@@ -73,18 +98,19 @@ calibs <- lapply(names(splitintervalCases), function(provinceName){
   ##So we can see what's going on.
   print(paste0("now calibrating ", provinceName))
   calibrate(base_params = pars,
-             data = provincereport,
-             time_args = list(break_dates = NULL),
-             opt_pars = list(params = c(beta0 = 0.1)))
+            data = provincereport,
+            time_args = list(break_dates = NULL),
+            opt_pars = list(params = c(beta0 = 0.1)))
 })
-names(calibs) <- names(splitintervalCases)
+names(badcalibs) <- names(splitintervalCases)
 ##Save a calibration so we don't have to run it again to get the same results.
+
 savecalibs <- function(){
-  saveRDS(calibs, "calibs.rds")
+  saveRDS(goodcalibs, "calibs.rds")
 }
 ##Load a calibration that we saved using the filename abve.
 loadcalibs <- function(){
-  return(readRDS("calibs.rds"))
+  return(goodreadRDS("calibs.rds"))
 }
 ##Plot a calibrated simulation, changing the provinceName to whatever we want it to be..
 ###plot(calibs$ON, data = splitintervalCases$ON, predict_args=list(keep_vars=c("report")))
