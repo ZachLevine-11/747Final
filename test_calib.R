@@ -104,13 +104,12 @@ badcalibs <- lapply(names(splitintervalCases), function(provinceName){
 })
 names(badcalibs) <- names(splitintervalCases)
 ##Save a calibration so we don't have to run it again to get the same results.
-
 savecalibs <- function(){
   saveRDS(goodcalibs, "calibs.rds")
 }
 ##Load a calibration that we saved using the filename abve.
 loadcalibs <- function(){
-  return(goodreadRDS("calibs.rds"))
+  return(readRDS("calibs.rds"))
 }
 ##Plot a calibrated simulation, changing the provinceName to whatever we want it to be..
 ###plot(calibs$ON, data = splitintervalCases$ON, predict_args=list(keep_vars=c("report")))
