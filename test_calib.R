@@ -58,8 +58,34 @@ names(splitintervalCases) <- as.vector(unique(allcases$Province))
 pars <- read_params("ICU1.csv")
 
 ##Mike Li method.
-calibrate_good <- function(){
+calibrate_good <- function(justQuebec = FALSE){
+  if (justQuebec){
+    provinceName <- "QC"
+    provincereport <-  splitintervalCases[[provinceName]]
+    ##E0 should be the number of cumulative reports at that date.
+    ##Use epigrowthfit to estimate R0 and then fix the parameter file for each province to match that estimated rate from the data.
+    data(covid_generation_interval)
+    pars <- fix_pars(pars, target = c(R0 = compute_R0(egf(egf_init(date = provincereport$date, cases = provincereport$value)), breaks =  covid_generation_interval$breaks, probs = covid_generation_interval$probs), Gbar = 6))
+    pars <- update(pars, c(N = pops[[provinceName]], E0 = provincereport$value[[16]]))
+    ##So we can see what's going on.
+    ##Rigged based on the calibration to Ontario in https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
+    optpars <- list(params = c(log_E0 = 4.8, log_beta0 = -1, logit_phi1 = -1), log_nb_disp=c(report=1, death=1, H=1)) 
+    print(paste0("now calibrating ", provinceName))
+    cal <- calibrate(base_params = pars,
+              data = provincereport,
+              debug_plot = FALSE,
+              ##based on the calibration to ontario in https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
+              sim_args = list(ndt = 1, ratemat_args = list(testing_time = "report")),
+              time_args = list(break_dates = NULL),
+              opt_pars = optpars)
+    return(cal)
+    }
+  else{
   goodcalibs <- lapply(names(splitintervalCases), function(provinceName){
+    if (provinceName == "QC"){
+      calibrate_good(justQuebec = TRUE)
+    }
+    else{
     provincereport <-  splitintervalCases[[provinceName]]
     ##E0 should be the number of cumulative reports at that date.
     ##Use epigrowthfit to estimate R0 and then fix the parameter file for each province to match that estimated rate from the data.
@@ -67,22 +93,22 @@ calibrate_good <- function(){
     pars <- fix_pars(pars, target = c(R0 = compute_R0(egf(egf_init(date = provincereport$date, cases = provincereport$value)), breaks =  covid_generation_interval$breaks, probs = covid_generation_interval$probs), Gbar = 6))
     pars <- update(pars, c(N = pops[[provinceName]]))
     ##So we can see what's going on.
-    print(paste0("now calibrating ", provinceName))
     ##Rigged based on the calibration to Ontario in https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
     optpars <- list(params = c(log_E0 = 2, log_beta0 = -1, logit_phi1 = -1), log_nb_disp=c(report=1, death=1, H=1)) 
-    calibrate(base_params = pars,
-              data = provincereport,
-              debug_plot = FALSE,
-              ##based on the calibration to ontario in https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
-              sim_args = list(ndt = 1, ratemat_args = list(testing_time = "report")),
-              time_args = list(break_dates = NULL),
-              opt_pars = optpars)
+      print(paste0("now calibrating ", provinceName))
+      calibrate(base_params = pars,
+                data = provincereport,
+                debug_plot = FALSE,
+                ##based on the calibration to ontario in https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
+                sim_args = list(ndt = 1, ratemat_args = list(testing_time = "report")),
+                time_args = list(break_dates = NULL),
+                opt_pars = optpars)
+    }
   })
   names(goodcalibs) <- names(splitintervalCases)
   return(goodcalibs)
+  }
 }
-
-##Save a calibration so we don't have to run it again to get the same results.
 
 ##Our method that is not as goood.
 ##Calibrate each province based on that provinces reported cases and the same set of base parameters.
@@ -114,7 +140,9 @@ loadcalibs <- function(){
   return(readRDS("calibs.rds"))
 }
 ##Plot a calibrated simulation, changing the provinceName to whatever we want it to be..
-###plot(calibs$ON, data = splitintervalCases$ON, predict_args=list(keep_vars=c("report")))
+plotCalib <- function(provinceName, calibslist = goodcalibs, reportlist = splitintervalCases){
+  plot(calibslist[[provinceName]], data = reportlist[[provinceName]], predict_args=list(keep_vars=c("report")))
+}
 
 ##Do forecasts for each province.
 ##Options
