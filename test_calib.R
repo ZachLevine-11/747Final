@@ -54,14 +54,6 @@ splitintervalCases <- lapply(as.vector(unique(allcases$Province)), function(prov
   return(intervalcasesdf)
 })
 names(splitintervalCases) <- as.vector(unique(allcases$Province))
-initialvalswave2 <- lapply(names(splitintervalCases), function(provinceName){
-  #For each province, select all the data corresponding to that province.
-  casesdf <- allcases[as.vector(allcases$Province) == provinceName,]
-  ##Get rid of missing values.
-  casesdf <- casesdf[!is.na(casesdf$"confirmed_positive"),]
-  return(casesdf[anytime::anydate(casesdf$Date) >= startdate, "confirmed_positive"][1])
-})
-names(initialvalswave2) <- names(splitintervalCases)
 
 pars <- read_params("ICU1.csv")
 
@@ -73,7 +65,7 @@ calibrate_good <- function(){
     ##Use epigrowthfit to estimate R0 and then fix the parameter file for each province to match that estimated rate from the data.
     data(covid_generation_interval)
     pars <- fix_pars(pars, target = c(R0 = compute_R0(egf(egf_init(date = provincereport$date, cases = provincereport$value)), breaks =  covid_generation_interval$breaks, probs = covid_generation_interval$probs), Gbar = 6))
-    pars <- update(pars, c(N = pops[[provinceName]], E0 = initialvalswave2[[provinceName]]))
+    pars <- update(pars, c(N = pops[[provinceName]]))
     ##So we can see what's going on.
     print(paste0("now calibrating ", provinceName))
     ##Rigged based on the calibration to Ontario in https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
@@ -97,7 +89,7 @@ calibrate_good <- function(){
 calibrate_bad <- function(){
   badcalibs <- lapply(names(splitintervalCases), function(provinceName){
     provincereport <-  splitintervalCases[[provinceName]]
-    pars <- update(pars, c(N = pops[[provinceName]], E0 = initialvalswave2[[provinceName]]))
+    pars <- update(pars, c(N = pops[[provinceName]]))
     ##E0 should be the number of cumulative reports at that date.
     ##Use epigrowthfit to estimate R0 and then fix the parameter file for each province to match that estimated rate from the data.
     data(covid_generation_interval)
@@ -129,10 +121,18 @@ loadcalibs <- function(){
 ##scenario =  1: status quo. Do nothing
 ##scenario = 2: Strict lockdown is imposed throughout the country on December 18th, 2020, and then relaxed six weeks lated
 ##scenario = 3: ICU's fill up on Jan 15th (a month into the simulation), and then clear exactly a month later.
-
-forecast_province <- function(calibsList = goodcalibs, provinceName, scenario){
+forecast_province <- function(provinceName, sd = anytime::anydate("2020-08-01"), ed = anytime::anydate("2021-12-18"), scenario = 1, calibsList = goodcalibs){
   calib <- calibsList[[provinceName]]
-  pars <- calib[]
+  ff <- calib$forecast_args
+  pars <- ff$base_params
+  ##Do these manually I guess.
+  #pars[["E0"]] <- coef(calib, "fitted")$params["E0"]
+  #pars[["beta0"]] <- coef(calib, "fitted")$params["beta0"]
+  #pars[["phi1"]] <- coef(calib, "fitted")$params["phi1"]
+  ##The below line does the same thing. Lee, I'm leaving the above three in there so you can see.
+  pars[names(coef(calib, "fitted")$params)] <- coef(calib, "fitted")$params
+  ##Stil don't now why this didn't work.
+  #pars <- update(pars, ff$opt_pars$params)
   ##The only thing that changes between scenarios is the time_pars.
   if (scenario == 1){
     ##Status quo
@@ -146,7 +146,7 @@ forecast_province <- function(calibsList = goodcalibs, provinceName, scenario){
     ##Six weeks after is Jan 29th, 2021
     time_pars <- data.frame(Date=c("2020-12-18", "2021-01-29"),
                             Symbol=c("beta0", "beta0"),
-                            Relative_value=c(0.1, 1),
+                            Relative_value=c(0.5, 0.1),
                             stringsAsFactors=FALSE)
   }
   else if (scenario == 3){
@@ -158,6 +158,14 @@ forecast_province <- function(calibsList = goodcalibs, provinceName, scenario){
   }
   else{
   }
-  sim <- run_sim(params, start_date = "2020-12-01", end_date = "2021-12-31", params_timevar = time_pars)
+  sim <- run_sim(pars, start_date = sd, end_date = ed, params_timevar = time_pars)
   return(sim)
+}
+
+##Test a forecast by plotting it on the same graph as the observed report data and the calibrate to it.
+test_forecast_plot <- function(provinceName, sim = forecast_province(provinceName)){
+  plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "incidence", "D", "H", "ICU")) +
+    geom_point(data = splitintervalCases[[provinceName]],
+               mapping = aes(x = date, y = value))
+
 }
