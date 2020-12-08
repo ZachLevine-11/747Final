@@ -1,4 +1,4 @@
-##standard R packaes.
+##standard R packages.
 library("dplyr")
 library("anytime")
 library("lubridate")
