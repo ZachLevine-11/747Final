@@ -1,25 +1,68 @@
-##standard R packages.
-library("dplyr")
-library("anytime")
-library("lubridate")
-library("chron")
-library("ggplot2")
-##McMaster University-specific packages
-library("McMasterPandemic")
-library("epigrowthfit")
-##Keep a copy of the data and ICU1.csv, the params, in my home folder so that this works.
+#--------------------------------------------------------------------------
+#   LOADING R PACKAGES
+#--------------------------------------------------------------------------
+
+## Loading Standard R Packages
+
+library("dplyr") # For nice data frame manipulation
+
+library("anytime") # Date/Time manipulation
+
+library("lubridate") # Date/Time manipulation
+
+library("chron") # Date/Time manipulation
+
+library("ggplot2") # For fancy plots
+
+## Loading Pandemic Modeling Packages
+
+library("epigrowthfit") # For pandemic model parameter estimation
+
+library("McMasterPandemic") # For COVID-19 Pandemic Simulations and Forecasting
+
+#--------------------------------------------------------------------------
+#   LOADING AND MANIPULATING CANADA COVID-19 DATA TO CALIBRATE
+#--------------------------------------------------------------------------
+
+## Keep a copy of the data (mikelidata.csv) and ICU1.csv (the params) in working directory
+
+## Reading in provincial-level COVID-19 data
+
 allcases <- read.csv("mikelidata.csv")
-##Set the start date to whatever we want it to be.
-startdate <- anytime::anydate("2020-08-15")
-##Province population sizes to use in calibration
-pops <- c("AB" = 4421876, "BC" = 5147712, "ON" = 14734000, "SK" = 1178681, "MB" = 1379263, "QC" = 8574571)
-##Strip out the provinces we don't want, leaving only the ones Mike used.
+
+## We focus on provinces with high incidence and minimal noise
+
+## Isolating the provinces of AB, BC, ON, SK, MB, QC
+
 toKeep <- c("AB", "BC", "ON", "SK", "MB", "QC")
+
 allcases <- allcases[allcases$Province %in% toKeep,]
-##Re-use some of my code from A1.
+
+## Setting provincial population sizes to use in calibration (source: StatCan)
+
+pops <- c("AB" = 4421876, 
+          "BC" = 5147712, 
+          "ON" = 14734000, 
+          "SK" = 1178681, 
+          "MB" = 1379263, 
+          "QC" = 8574571)
+
+## Setting start date of calibration. Date signifies rough start of 2nd wave.
+
+startdate <- anytime::anydate("2020-08-15")
+
+## Creating a function to perform the following tasks:
+# 1) Matches real data to model variables (report, deaths and hospitalization)
+# 2) Creates non-negative interval incidence and death columns from cumulative data (hospitalization already recorded as daily count)
+# 3) Removes missing values
+# 4) Converts data to "long form" so that it can be passed to calibrate()
+# 5) Filters data so that it starts at the beginning of the second wave
+
+## Matching real data to model variables
+
 splitinterval <- function(var){
   if (var == "report"){
-    ##Colselect grabs the data from the main data frame. var tells the calibration function what variable the data is.
+    ## colselect grabs the data from the main data frame and var tells the calibration function what variable the data is.
     colselect <- "confirmed_positive"
     var <- "report"
   }
@@ -32,23 +75,24 @@ splitinterval <- function(var){
     var <-  "H"
   }
   lapply(as.vector(unique(allcases$Province)), function(provinceName){
-    ##For each province, select all the data corresponding to that province.
+    ## Select all the data corresponding to each province
     casesdf <- allcases[as.vector(allcases$Province) == provinceName,]
-    ##Get rid of missing values.
+    ## Remove missing values
     casesdf <- casesdf[!is.na(casesdf[,colselect]),]
-    ##Derive interval incidence by differencing (discarding the first reported entry to align all the columns and keep them the same length), keeping the column for each provience as a check to make sure we're doing everthing properly.
+    ## Create interval incidence column by differencing 
+    # Discard the first reported entry to align all the columns and keep them the same length, keeping the column for each province as a check to make sure we're doing everything properly.
     intervalcasesdf <- bind_cols("Date" = casesdf$"Date",
                                  "Province" =  casesdf$"Province",
                                  "Note" = casesdf$"Note",
                                  "intervalCases" = c(0, diff(casesdf[,colselect], lag = 1)))
-    ##Some row of contain a negative value, so let's get rid of them
+    ## Removal of negative values
     intervalcasesdf <- intervalcasesdf[intervalcasesdf$intervalCases >= 0,]
-    ##Format the data so that it can be passed to calibrate.
+    ## Converting data to "long form" so that it can be passed to calibrate
     colnames(intervalcasesdf) <- c("date", "a", "b", "value")
     intervalcasesdf <- intervalcasesdf[,-c(2,3)]
     intervalcasesdf$var <- rep(var, nrow(intervalcasesdf))
     intervalcasesdf$date <- anytime::anydate(intervalcasesdf$date)
-    ##Grab only the second wave, using the start date we set above.
+    ## Filtering data to begin at second wave (using startdate)
     if (provinceName == "MB"){
       startdate <- anytime::anydate("2020-09-15")
     }
@@ -57,24 +101,38 @@ splitinterval <- function(var){
   })
 }
 
-##Make the vectors of observed data.
-pars <- read_params("ICU1.csv")
+## Create vectors of observed data.
+
 splitintervalCases <- splitinterval(var = "report")
+
 splitintervaldeaths <- splitinterval(var = "deaths")
+
 splitintervalhosp <- splitinterval(var = "hosp")
-##Setting the names in the function stops it from returning the list which is what we want, so we'll do it here.
+
+## Setting the names in the function stops it from returning the list which is what we want, so we'll do it here.
+
 names(splitintervalhosp) <- names(splitintervalCases) <- names(splitintervaldeaths) <- unique(allcases$Province)  
 
-##Mike Li method.
+#--------------------------------------------------------------------------
+#   CALIBRATING
+#--------------------------------------------------------------------------
+
+## Reading in preset parameter file from McMasterPandemic
+
+pars <- read_params("ICU1.csv")
+
+## Creation of function "calibrate_good" which calibrates all provinces
+
 calibrate_good <- function(){
   goodcalibs <- lapply(names(splitintervalCases), function(provinceName){
     dd <-  bind_rows(splitintervalCases[[provinceName]], splitintervaldeaths[[provinceName]])
-    ##We need to order by date
+    ## Order by date
     dd <- dd[order(anytime::anydate(dd$date)),]
     provincereport <- splitintervalCases[[provinceName]]
-    ##Use epigrowthfit to estimate R0 and then fix the parameter file for each province to match that estimated rate from the data.
+    ## Use epigrowthfit to estimate R0 and then fix the parameter file for each province to match the estimated rate from the data and setting Gbar = 6
     data(covid_generation_interval)
     pars <- fix_pars(pars, target = c(R0 = compute_R0(egf(egf_init(date = provincereport$date, cases = provincereport$value)), breaks =  covid_generation_interval$breaks, probs = covid_generation_interval$probs), Gbar = 6))
+    ## Set population size for each province
     pars <- update(pars, c(N = pops[[provinceName]]))
     init_e0 <- provincereport$value[[16]]
     if (init_e0 == 0){
@@ -83,20 +141,23 @@ calibrate_good <- function(){
     else{
       loginit_e0 <- log(init_e0)
     }
-    ##Rigged based on the calibration to Ontario in https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
+    ## Parameters to be optimized are based on the calibration to Ontario by Michael Li in 
+    # https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
     optpars <- list(params = c(log_E0 = loginit_e0, log_beta0 = -1, logit_phi1 = -1), log_nb_disp=c(report=1, death=1, H=1)) 
-    ##Don't calibrate to SK deaths because they are too noisy.
+    ## Calibration to SK deaths is not done due to noise.
     if (provinceName == "SK"){
       dd <- dd[dd$var == "report",]
     }
     else{
     }
-    ##So we can see what's going on.
+    ## Print which province is currently being calibrated
     print(paste0("now calibrating ", provinceName))
+    ## Calibration step
       calibrate(base_params = pars,
                 data = dd,
                 debug_plot = FALSE,
-                ##based on the calibration to ontario in https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
+                ## sim_args below based on the calibration to Ontario in 
+                # https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
                 sim_args = list(ndt = 1, ratemat_args = list(testing_time = "report")),
                 time_args = list(break_dates = NULL),
                 opt_pars = optpars)
@@ -139,11 +200,24 @@ savecalibs <- function(){
 loadcalibs <- function(){
   return(readRDS("calibs.rds"))
 }
-##Do forecasts for each province.
-##Options
-##scenario =  1: status quo. Do nothing
-##scenario = 2: Strict lockdown is imposed throughout the country on December 18th, 2020, and then relaxed six weeks lated
-##scenario = 3: ICU's fill up on Jan 15th (a month into the simulation), and then clear exactly a month later.
+
+#--------------------------------------------------------------------------
+#   FORECAST FUNCTION WITH SCENARIOS
+#--------------------------------------------------------------------------
+
+## Creation of a forecasting function "forecast_province" with the following arguments
+# 1) Name of province to forecast
+# 2) Start date of forecast
+# 3) End date of forecast
+# 4) Scenario number (see comment below for details)
+# 5) List of calibrations
+
+## There are four scenarios to choose from
+# scenario = 1: No government intervention (status quo is maintained)
+# scenario = 2: Strict lockdown imposed in Canada on December 18th, 2020, and then relaxed six weeks later
+# scenario = 3: ICUs fill up on Jan 15th (a month into the simulation), and then clear exactly a month later
+# scenario = 4: TBA
+
 forecast_province <- function(provinceName, sd = anytime::anydate("2020-08-01"), ed = anytime::anydate("2021-12-18"), scenario = 1, calibsList = goodcalibs){
   calib <- calibsList[[provinceName]]
   ff <- calib$forecast_args
