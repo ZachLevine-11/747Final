@@ -233,10 +233,7 @@ forecast_province <- function(provinceName, sd = anytime::anydate("2020-08-01"),
   ##The only thing that changes between scenarios is the time_pars.
   if (scenario == 1){
     ##Status quo
-    time_pars <- data.frame(Date=c("2020-12-01"),
-                            Symbol=c("beta0"),
-                            Relative_value=c(1),
-                            stringsAsFactors=FALSE)
+    time_pars <- NULL
   }
   else if (scenario == 2){
     ##Lockdown then relax six weeks after.
