@@ -86,7 +86,7 @@ calibrate_good <- function(){
     ##Rigged based on the calibration to Ontario in https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
     optpars <- list(params = c(log_E0 = loginit_e0, log_beta0 = -1, logit_phi1 = -1), log_nb_disp=c(report=1, death=1, H=1)) 
     ##Don't calibrate to SK deaths because they are too noisy.
-    if (province == "SK"){
+    if (provinceName == "SK"){
       dd <- dd[dd$var == "report",]
     }
     else{
@@ -111,7 +111,7 @@ calibrate_bad <- function(){
     dd <-  bind_rows(splitintervalCases[[provinceName]], splitintervaldeaths[[provinceName]])
     ##We need to order by date
     dd <- dd[order(anytime::anydate(dd$date)),]
-    if (province == "SK"){
+    if (provinceName == "SK"){
       dd <- dd[dd$var == "report",]
     }
     else{
