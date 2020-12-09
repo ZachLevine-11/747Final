@@ -262,15 +262,17 @@ forecast_province <- function(provinceName,
   }
   else if (scenario == 4){
     ##Social distancing protocols are implemented.
-    time_pars <- data.frame(Date=c("2020-12-18", "2020-12-18", "2021-02-18", "2021-02-18"),
-                            Symbol=c("iso_m", "iso_s", "iso_m", "iso_s"),
-                            Relative_value=c(isom_init, isos_init, 0,0),
+    pars <- update(pars, iso_m = isom_init, iso_s = isos_init)
+    time_pars <- data.frame(Date=c(startdate, startdate, "2020-12-18", "2020-12-18", "2021-02-18", "2021-02-18"),
+                            Symbol=c("iso_m", "iso_s", "iso_m", "iso_s", "iso_m", "iso_s"),
+                            Relative_value=c(0, 0, 1, 1, 0, 0),
                             stringsAsFactors=FALSE)
   }
   else{
   }
   sim <- run_sim(pars, start_date = sd, end_date = ed, params_timevar = time_pars)
   return(sim)
+  pars <- update(pars, iso_m = 0, iso_s = 0)
 }
 ##Plot a calibrated simulation, changing the provinceName to whatever we want it to be..
 test_calib_plot <- function(provinceName, calibslist = goodcalibs, reportlist = splitintervalCases, deathlist = splitintervaldeaths, hosplist = splitintervalhosp){
