@@ -146,7 +146,13 @@ calibrate_good <- function(){
     }
     ## Parameters to be optimized are based on the calibration to Ontario by Michael Li in 
     # https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
-    optpars <- list(params = c(log_E0 = loginit_e0, log_beta0 = -1, logit_phi1 = -1), log_nb_disp=c(report=1, death=1, H=1)) 
+    if (provinceName == "QC") {
+      optpars <- list(params = c(log_E0 = loginit_e0, log_beta0 = -1, logit_phi1 = -1), logit_rel_beta0 = c(-0.223), log_nb_disp=c(report=1, death=1, H=1))
+      bks <- c("2020-Oct-06")
+    } else{
+      optpars <- list(params = c(log_E0 = loginit_e0, log_beta0 = -1, logit_phi1 = -1), log_nb_disp=c(report=1, death=1, H=1))
+      bks <- NULL
+    }
     ## Calibration to SK deaths is not done due to noise.
     if (provinceName == "SK"){
       dd <- dd[dd$var == "report",]
@@ -162,7 +168,7 @@ calibrate_good <- function(){
                 ## sim_args below based on the calibration to Ontario in 
                 # https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
                 sim_args = list(ndt = 1, ratemat_args = list(testing_time = "report")),
-                time_args = list(break_dates = NULL),
+                time_args = list(break_dates = bks),
                 opt_pars = optpars)
   })
   names(goodcalibs) <- names(splitintervalCases)
@@ -298,3 +304,4 @@ test_forecast_plot <- function(provinceName, sim = forecast_province(provinceNam
   #geom_point(data = splitintervalhosp[[provinceName]],
   #           mapping = aes(x = date, y = value))
 }
+
