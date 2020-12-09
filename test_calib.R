@@ -136,10 +136,13 @@ calibrate_good <- function(){
     pars <- update(pars, c(N = pops[[provinceName]]))
     init_e0 <- provincereport$value[[16]]
     if (init_e0 == 0){
-      loginit_e0 <- 2
+      loginit_e0 <- log(provincereport$value[[18]])
+    }
+    else if (provinceName == "SK"){
+      loginit_e0 <-2
     }
     else{
-      loginit_e0 <- log(init_e0)
+      loginit_e0 <- log(provincereport$value[[16]])
     }
     ## Parameters to be optimized are based on the calibration to Ontario by Michael Li in 
     # https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
