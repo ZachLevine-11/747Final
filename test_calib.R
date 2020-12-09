@@ -218,7 +218,17 @@ loadcalibs <- function(){
 # scenario = 3: ICUs fill up on Jan 15th (a month into the simulation), and then clear exactly a month later
 # scenario = 4: TBA
 
-forecast_province <- function(provinceName, sd = anytime::anydate("2020-08-01"), ed = anytime::anydate("2021-12-18"), scenario = 1, calibsList = goodcalibs){
+forecast_province <- function(provinceName, 
+                              sd = anytime::anydate("2020-08-01"), 
+                              ed = anytime::anydate("2021-12-18"), 
+                              scenario = 1, 
+                              calibsList = goodcalibs,
+                              lockdown_beta0 = 0.5,
+                              lockdown_relax = 0.1,
+                              phi2_1 = 0.1,
+                              phi2_2 = 0.5,
+                              isom_init = 0.7,
+                              isos_init = 0.9){
   calib <- calibsList[[provinceName]]
   ff <- calib$forecast_args
   pars <- ff$base_params
@@ -240,14 +250,21 @@ forecast_province <- function(provinceName, sd = anytime::anydate("2020-08-01"),
     ##Six weeks after is Jan 29th, 2021
     time_pars <- data.frame(Date=c("2020-12-18", "2021-01-29"),
                             Symbol=c("beta0", "beta0"),
-                            Relative_value=c(0.5, 0.1),
+                            Relative_value=c(lockdown_beta0, lockdown_relax),
                             stringsAsFactors=FALSE)
   }
   else if (scenario == 3){
     ##ICU's fill up and then clear exactly a month later.
-    time_pars <- data.frame(Date=c("2021-01-15", "2021-02-15"),
-                            Symbol=c("phi2", "beta0"),
-                            Relative_value=c(0.1, 1),
+    time_pars <- data.frame(Date=c("2020-01-15", "2021-02-15"),
+                            Symbol=c("phi2", "phi2"),
+                            Relative_value=c(phi2_1, phi2_2),
+                            stringsAsFactors=FALSE)
+  }
+  else if (scenario == 4){
+    ##Social distancing protocols are implemented.
+    time_pars <- data.frame(Date=c("2020-12-18", "2020-12-18", "2021-02-18", "2021-02-18"),
+                            Symbol=c("iso_m", "iso_s", "iso_m", "iso_s"),
+                            Relative_value=c(isom_init, isos_init, 0,0),
                             stringsAsFactors=FALSE)
   }
   else{
