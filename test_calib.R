@@ -131,10 +131,16 @@ calibrate_good <- function(){
     pars <- fix_pars(pars, target = c(R0 = compute_R0(egf(egf_init(date = provincereport$date, cases = provincereport$value)), breaks =  covid_generation_interval$breaks, probs = covid_generation_interval$probs), Gbar = 6))
     pars <- update(pars, c(N = pops[[provinceName]]))
     init_e0 <- provincereport$value[[16]]
+<<<<<<< HEAD
     if (provinceName == "AB" || provinceName == "BC"){
       loginit_e0 <- log(splitintervalCases[[provinceName]]$value[[18]])
     }
     else if (init_e0 == 0){
+=======
+    if (init_e0 == 0){
+      loginit_e0 <- log(provincereport$value[[18]])
+    } else if (provinceName == "SK"){
+>>>>>>> 8e02dfcce70f8dfacbffe285dd9d47df01454c84
       loginit_e0 <- 2
     }
     else{
