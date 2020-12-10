@@ -120,39 +120,45 @@ names(splitintervalhosp) <- names(splitintervalCases) <- names(splitintervaldeat
 pars <- read_params("ICU1.csv")
 
 ## Creation of function "calibrate_good" which calibrates all provinces
+
 calibrate_good <- function(){
   goodcalibs <- lapply(names(splitintervalCases), function(provinceName){
     dd <-  bind_rows(splitintervalCases[[provinceName]], splitintervaldeaths[[provinceName]])
     ##We need to order by date
     dd <- dd[order(anytime::anydate(dd$date)),]
     provincereport <- splitintervalCases[[provinceName]]
-    ##Use epigrowthfit to estimate R0 and then fix the parameter file for each province to match that estimated rate from the data.
+    ## Use epigrowthfit to estimate R0 and then fix the parameter file for each province to match that estimated rate from the data and setting Gbar = 6
     data(covid_generation_interval)
     pars <- fix_pars(pars, target = c(R0 = compute_R0(egf(egf_init(date = provincereport$date, cases = provincereport$value)), breaks =  covid_generation_interval$breaks, probs = covid_generation_interval$probs), Gbar = 6))
     pars <- update(pars, c(N = pops[[provinceName]]))
     init_e0 <- provincereport$value[[16]]
     if (init_e0 == 0){
+      ## Index = 16 for AB and BC gives zero, use 18 instead
       loginit_e0 <- log(provincereport$value[[18]])
     } else if (provinceName == "SK"){
+      ## 2 works very well for SK
       loginit_e0 <- 2
     }
     else{
       loginit_e0 <- log(init_e0)
     }
-    ##Rigged based on the calibration to Ontario in https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
+    ## Parameters to be optimized are based on the calibration to Ontario by Michael Li in 
+    # https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
     optpars <- list(params = c(log_E0 = loginit_e0, log_beta0 = -1, logit_phi1 = -1), log_nb_disp=c(report=1, death=1, H=1)) 
-    ##Don't calibrate to SK deaths because they are too noisy.
+    ## Calibration to SK deaths is not performed due to noise.
       if (provinceName == "SK"){
         dd <- dd[dd$var == "report",]
       }
       else{
       }
-      ##So we can see what's going on.
+    ## Print which province is currently being calibrated
       print(paste0("now calibrating ", provinceName))
+    ## Calibration of all provinces
       calibrate(base_params = pars,
                 data = dd,
                 debug_plot = FALSE,
-                ##based on the calibration to ontario in https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
+                ## sim_args below based on the calibration to Ontario in 
+                # https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
                 sim_args = list(ndt = 1, ratemat_args = list(testing_time = "report")),
                 time_args = list(break_dates = NULL),
                 opt_pars = optpars)
@@ -186,8 +192,7 @@ loadcalibs <- function(){
 # scenario = 1: No government intervention (status quo is maintained)
 # scenario = 2: Strict lockdown imposed in Canada on December 18th, 2020, and then relaxed six weeks later
 # scenario = 3: ICUs fill up on Jan 15th (a month into the simulation), and then clear exactly a month later
-# scenario = 4: Social distancing
-# Note: initial iso_m and iso_s are very small (1/1mill). Large relative values are needed
+# scenario = 4: Flu season affecting savarity of symptoms
 
 forecast_province <- function(provinceName, 
                               sd = anytime::anydate("2020-08-01"), 
@@ -195,7 +200,7 @@ forecast_province <- function(provinceName,
                               scenario = 1, 
                               calibsList = goodcalibs,
                               lockdown_beta0 = 0.5,
-                              lockdown_relax = 0.1,
+                              lockdown_relax = 1,
                               phi2_1 = 0.1,
                               phi2_2 = 0.5,
                               isom_init = 500000,
@@ -232,10 +237,14 @@ forecast_province <- function(provinceName,
                             stringsAsFactors=FALSE)
   }
   else if (scenario == 4){
-    ##Social distancing protocols are implemented.
-    time_pars <- data.frame(Date=c("2020-12-18", "2020-12-18", "2021-02-18", "2021-02-18"),
-                            Symbol=c("iso_m", "iso_s", "iso_m", "iso_s"),
-                            Relative_value=c(isom_init,isos_init, 1, 1),
+    ## Flu & Covid
+    t <- (1/44)*seq(0,44)
+    change_mu <- pars[["Ca"]]*(1/4)*cos(2*pi*t)+(11/20)
+    dates <- seq(ymd("2021-01-15"),ymd("2021-02-28"), by="days")
+    
+    time_pars <- data.frame(Date=dates,
+                            Symbol=rep("Ca", 45),
+                            Relative_value=change_mu,
                             stringsAsFactors=FALSE)
   }
   else{
