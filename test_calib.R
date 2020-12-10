@@ -104,9 +104,7 @@ splitinterval <- function(var){
 ## Create vectors of observed data.
 
 splitintervalCases <- splitinterval(var = "report")
-
 splitintervaldeaths <- splitinterval(var = "deaths")
-
 splitintervalhosp <- splitinterval(var = "hosp")
 
 ## Setting the names in the function stops it from returning the list which is what we want, so we'll do it here.
@@ -121,90 +119,47 @@ names(splitintervalhosp) <- names(splitintervalCases) <- names(splitintervaldeat
 
 pars <- read_params("ICU1.csv")
 
-## Update iso_m and iso_s to be non-zero for social distancing scenario to work
-
-pars <- update(pars, iso_m = 0.000001, iso_s = 0.000001)
-
 ## Creation of function "calibrate_good" which calibrates all provinces
-
 calibrate_good <- function(){
   goodcalibs <- lapply(names(splitintervalCases), function(provinceName){
     dd <-  bind_rows(splitintervalCases[[provinceName]], splitintervaldeaths[[provinceName]])
-    ## Order by date
-    dd <- dd[order(anytime::anydate(dd$date)),]
-    provincereport <- splitintervalCases[[provinceName]]
-    ## Use epigrowthfit to estimate R0 and then fix the parameter file for each province to match the estimated rate from the data and setting Gbar = 6
-    data(covid_generation_interval)
-    pars <- fix_pars(pars, target = c(R0 = compute_R0(egf(egf_init(date = provincereport$date, cases = provincereport$value)), breaks =  covid_generation_interval$breaks, probs = covid_generation_interval$probs), Gbar = 6))
-    ## Set population size for each province
-    pars <- update(pars, c(N = pops[[provinceName]]))
-    init_e0 <- provincereport$value[[16]]
-    if (init_e0 == 0){
-      loginit_e0 <- log(provincereport$value[[18]])
-    }
-    else if (provinceName == "SK"){
-      loginit_e0 <-2
-    }
-    else{
-      loginit_e0 <- log(provincereport$value[[16]])
-    }
-    ## Parameters to be optimized are based on the calibration to Ontario by Michael Li in 
-    # https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
-    if (provinceName == "QC") {
-      optpars <- list(params = c(log_E0 = loginit_e0, log_beta0 = -1, logit_phi1 = -1), logit_rel_beta0 = c(-0.223), log_nb_disp=c(report=1, death=1, H=1))
-      bks <- c("2020-Oct-06")
-    } else{
-      optpars <- list(params = c(log_E0 = loginit_e0, log_beta0 = -1, logit_phi1 = -1), log_nb_disp=c(report=1, death=1, H=1))
-      bks <- NULL
-    }
-    ## Calibration to SK deaths is not done due to noise.
-    if (provinceName == "SK"){
-      dd <- dd[dd$var == "report",]
-    }
-    else{
-    }
-    ## Print which province is currently being calibrated
-    print(paste0("now calibrating ", provinceName))
-    ## Calibration step
-      calibrate(base_params = pars,
-                data = dd,
-                debug_plot = FALSE,
-                ## sim_args below based on the calibration to Ontario in 
-                # https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
-                sim_args = list(ndt = 1, ratemat_args = list(testing_time = "report")),
-                time_args = list(break_dates = bks),
-                opt_pars = optpars)
-  })
-  names(goodcalibs) <- names(splitintervalCases)
-  return(goodcalibs)
-}
-##Our method that is not as good.
-##Calibrate each province based on that provinces reported cases and the same set of base parameters.
-calibrate_bad <- function(){
-  badcalibs <- lapply(names(splitintervalCases), function(provinceName){
-    dd <-  bind_rows(splitintervalCases[[provinceName]], splitintervaldeaths[[provinceName]])
     ##We need to order by date
     dd <- dd[order(anytime::anydate(dd$date)),]
-    if (provinceName == "SK"){
-      dd <- dd[dd$var == "report",]
-    }
-    else{
-    }
     provincereport <- splitintervalCases[[provinceName]]
     ##Use epigrowthfit to estimate R0 and then fix the parameter file for each province to match that estimated rate from the data.
     data(covid_generation_interval)
     pars <- fix_pars(pars, target = c(R0 = compute_R0(egf(egf_init(date = provincereport$date, cases = provincereport$value)), breaks =  covid_generation_interval$breaks, probs = covid_generation_interval$probs), Gbar = 6))
     pars <- update(pars, c(N = pops[[provinceName]]))
-    ##So we can see what's going on.
-    print(paste0("now calibrating ", provinceName))
-    calibrate(base_params = pars,
-              data = dd,
-              time_args = list(break_dates = NULL),
-              opt_pars = list(params = c(beta0 = 0.1)))
-  })
-  names(badcalibs) <- names(splitintervalCases)
-  return(badcalibs)
+    init_e0 <- provincereport$value[[16]]
+    if (init_e0 == 0){
+      loginit_e0 <- 2
+    }
+    else{
+      loginit_e0 <- log(init_e0)
+    }
+    ##Rigged based on the calibration to Ontario in https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
+    optpars <- list(params = c(log_E0 = loginit_e0, log_beta0 = -1, logit_phi1 = -1), log_nb_disp=c(report=1, death=1, H=1)) 
+    ##Don't calibrate to SK deaths because they are too noisy.
+      if (provinceName == "SK"){
+        dd <- dd[dd$var == "report",]
+      }
+      else{
+      }
+      ##So we can see what's going on.
+      print(paste0("now calibrating ", provinceName))
+      calibrate(base_params = pars,
+                data = dd,
+                debug_plot = FALSE,
+                ##based on the calibration to ontario in https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
+                sim_args = list(ndt = 1, ratemat_args = list(testing_time = "report")),
+                time_args = list(break_dates = NULL),
+                opt_pars = optpars)
+    })
+  names(goodcalibs) <- names(splitintervalCases)
+  return(goodcalibs)
 }
+
+##Add our bad calibs.
 ##Save a calibration so we don't have to run it again to get the same results.
 savecalibs <- function(){
   saveRDS(goodcalibs, "calibs.rds")
@@ -295,7 +250,7 @@ test_calib_plot <- function(provinceName, calibslist = goodcalibs, reportlist = 
 }
 ##Test a forecast by plotting it on the same graph as the observed report data and the calibrate to it.
 test_forecast_plot <- function(provinceName, sim = forecast_province(provinceName)){
-  plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "H")) +
+  plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "H")) + 
     ##Add observed reported cases to the plot
     geom_point(data = splitintervalCases[[provinceName]],
                mapping = aes(x = date, y = value)) +
