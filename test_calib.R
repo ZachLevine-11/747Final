@@ -131,7 +131,10 @@ calibrate_good <- function(){
     pars <- fix_pars(pars, target = c(R0 = compute_R0(egf(egf_init(date = provincereport$date, cases = provincereport$value)), breaks =  covid_generation_interval$breaks, probs = covid_generation_interval$probs), Gbar = 6))
     pars <- update(pars, c(N = pops[[provinceName]]))
     init_e0 <- provincereport$value[[16]]
-    if (init_e0 == 0){
+    if (provinceName == "AB" || provinceName == "BC"){
+      loginit_e0 <- log(splitintervalCases[[provinceName]]$value[[18]])
+    }
+    else if (init_e0 == 0){
       loginit_e0 <- 2
     }
     else{
@@ -252,4 +255,3 @@ test_calib_plot <- function(provinceName, calibslist = goodcalibs, reportlist = 
 test_forecast_plot <- function(provinceName, sim = forecast_province(provinceName)){
   plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "H"))
 }
-
