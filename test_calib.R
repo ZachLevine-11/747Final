@@ -121,6 +121,10 @@ names(splitintervalhosp) <- names(splitintervalCases) <- names(splitintervaldeat
 
 pars <- read_params("ICU1.csv")
 
+## Update iso_m and iso_s to be non-zero for social distancing scenario to work
+
+pars <- update(pars, iso_m = 0.000001, iso_s = 0.000001)
+
 ## Creation of function "calibrate_good" which calibrates all provinces
 
 calibrate_good <- function(){
@@ -225,7 +229,8 @@ loadcalibs <- function(){
 # scenario = 1: No government intervention (status quo is maintained)
 # scenario = 2: Strict lockdown imposed in Canada on December 18th, 2020, and then relaxed six weeks later
 # scenario = 3: ICUs fill up on Jan 15th (a month into the simulation), and then clear exactly a month later
-# scenario = 4: TBA
+# scenario = 4: Social distancing
+# Note: initial iso_m and iso_s are very small (1/1mill). Large relative values are needed
 
 forecast_province <- function(provinceName, 
                               sd = anytime::anydate("2020-08-01"), 
@@ -236,8 +241,8 @@ forecast_province <- function(provinceName,
                               lockdown_relax = 0.1,
                               phi2_1 = 0.1,
                               phi2_2 = 0.5,
-                              isom_init = 0.7,
-                              isos_init = 0.9){
+                              isom_init = 500000,
+                              isos_init = 700000){
   calib <- calibsList[[provinceName]]
   ff <- calib$forecast_args
   pars <- ff$base_params
@@ -271,17 +276,15 @@ forecast_province <- function(provinceName,
   }
   else if (scenario == 4){
     ##Social distancing protocols are implemented.
-    pars <- update(pars, iso_m = isom_init, iso_s = isos_init)
-    time_pars <- data.frame(Date=c(startdate, startdate, "2020-12-18", "2020-12-18", "2021-02-18", "2021-02-18"),
-                            Symbol=c("iso_m", "iso_s", "iso_m", "iso_s", "iso_m", "iso_s"),
-                            Relative_value=c(0, 0, 1, 1, 0, 0),
+    time_pars <- data.frame(Date=c("2020-12-18", "2020-12-18", "2021-02-18", "2021-02-18"),
+                            Symbol=c("iso_m", "iso_s", "iso_m", "iso_s"),
+                            Relative_value=c(isom_init,isos_init, 1, 1),
                             stringsAsFactors=FALSE)
   }
   else{
   }
   sim <- run_sim(pars, start_date = sd, end_date = ed, params_timevar = time_pars)
   return(sim)
-  pars <- update(pars, iso_m = 0, iso_s = 0)
 }
 ##Plot a calibrated simulation, changing the provinceName to whatever we want it to be..
 test_calib_plot <- function(provinceName, calibslist = goodcalibs, reportlist = splitintervalCases, deathlist = splitintervaldeaths, hosplist = splitintervalhosp){
