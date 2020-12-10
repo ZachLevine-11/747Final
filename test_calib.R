@@ -250,16 +250,6 @@ test_calib_plot <- function(provinceName, calibslist = goodcalibs, reportlist = 
 }
 ##Test a forecast by plotting it on the same graph as the observed report data and the calibrate to it.
 test_forecast_plot <- function(provinceName, sim = forecast_province(provinceName)){
-  plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "H")) + 
-    ##Add observed reported cases to the plot
-    geom_point(data = splitintervalCases[[provinceName]],
-               mapping = aes(x = date, y = value)) +
-    ##Add observed deaths to the plot
-    geom_point(data = splitintervaldeaths[[provinceName]],
-               mapping = aes(x = date, y = value)) 
-  #+
-  ##Add observed hospitalizations to the plot
-  #geom_point(data = splitintervalhosp[[provinceName]],
-  #           mapping = aes(x = date, y = value))
+  plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "H"))
 }
 
