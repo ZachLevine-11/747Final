@@ -121,7 +121,7 @@ pars <- read_params("ICU1.csv")
 
 ## Creation of function "calibrate_good" which calibrates all provinces
 
-calibrate_good <- function(){
+calibrate <- function(good = TRUE){
   goodcalibs <- lapply(names(splitintervalCases), function(provinceName){
     dd <-  bind_rows(splitintervalCases[[provinceName]], splitintervaldeaths[[provinceName]])
     ##We need to order by date
@@ -144,8 +144,14 @@ calibrate_good <- function(){
     }
     ## Parameters to be optimized are based on the calibration to Ontario by Michael Li in 
     # https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
-    optpars <- list(params = c(log_E0 = loginit_e0, log_beta0 = -1, logit_phi1 = -1), log_nb_disp=c(report=1, death=1, H=1)) 
-    ## Calibration to SK deaths is not performed due to noise.
+    
+    if (good){
+      optpars <- list(params = c(log_E0 = loginit_e0, log_beta0 = -1, logit_phi1 = -1), log_nb_disp=c(report=1, death=1, H=1)) 
+    }
+    else{
+      optpars <- list(params = c(E0 = 100, beta0 = 0.5))
+    }
+      ## Calibration to SK deaths is not performed due to noise.
     if (provinceName == "SK"){
       dd <- dd[dd$var == "report",]
     }
@@ -160,7 +166,7 @@ calibrate_good <- function(){
               ## sim_args below based on the calibration to Ontario in 
               # https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
               sim_args = list(ndt = 1, ratemat_args = list(testing_time = "report")),
-              time_args = list(break_dates = NULL),
+              time_args = list(break_dates  = NULL),
               opt_pars = optpars)
   })
   names(goodcalibs) <- names(splitintervalCases)
@@ -192,7 +198,7 @@ loadcalibs <- function(){
 # scenario = 1: No government intervention (status quo is maintained)
 # scenario = 2: Strict lockdown imposed in Canada on December 18th, 2020, and then relaxed six weeks later
 # scenario = 3: ICUs fill up on Jan 15th (a month into the simulation), and then clear exactly a month later
-# scenario = 4: Flu season affecting savarity of symptoms
+# scenario = 4: Flu season affecting severity of symptoms
 
 forecast_province <- function(provinceName, 
                               sd = anytime::anydate("2020-08-01"), 
@@ -238,13 +244,9 @@ forecast_province <- function(provinceName,
   }
   else if (scenario == 4){
     ## Flu & Covid
-    t <- (1/44)*seq(0,44)
-    change_mu <- pars[["Ca"]]*(1/4)*cos(2*pi*t)+(11/20)
-    dates <- seq(ymd("2021-01-15"),ymd("2021-02-28"), by="days")
-    
-    time_pars <- data.frame(Date=dates,
-                            Symbol=rep("Ca", 45),
-                            Relative_value=change_mu,
+    time_pars <- data.frame(Date=c("2020-12-18"),
+                            Symbol = c("alpha"),
+                            Relative_value= c(10),
                             stringsAsFactors=FALSE)
   }
   else{
@@ -261,5 +263,5 @@ test_calib_plot <- function(provinceName, calibslist = goodcalibs, reportlist = 
 }
 ##Test a forecast by plotting it on the same graph as the observed report data and the calibrate to it.
 test_forecast_plot <- function(provinceName, sim = forecast_province(provinceName)){
-  plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "H"))
+  plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "H", "report"))
 }
