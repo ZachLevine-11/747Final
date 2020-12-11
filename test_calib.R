@@ -119,9 +119,7 @@ names(splitintervalhosp) <- names(splitintervalCases) <- names(splitintervaldeat
 
 pars <- read_params("ICU1.csv")
 
-## Creation of function "calibrate_good" which calibrates all provinces
-
-calibrate_good <- function(){
+calibrate_provinces <- function(good = TRUE){
   goodcalibs <- lapply(names(splitintervalCases), function(provinceName){
     dd <-  bind_rows(splitintervalCases[[provinceName]], splitintervaldeaths[[provinceName]])
     ##We need to order by date
@@ -142,9 +140,15 @@ calibrate_good <- function(){
     else{
       loginit_e0 <- log(init_e0)
     }
+    if (good){
+      optpars <- list(params = c(log_E0 = loginit_e0, log_beta0 = -1, logit_phi1 = -1), log_nb_disp=c(report=1, death=1, H=1)) 
+      
+    }
+    else{
+      optpars <- list(params = c(log_E0 = loginit_e0, log_beta0 = -1))
+    }
     ## Parameters to be optimized are based on the calibration to Ontario by Michael Li in 
     # https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
-    optpars <- list(params = c(log_E0 = loginit_e0, log_beta0 = -1, logit_phi1 = -1), log_nb_disp=c(report=1, death=1, H=1)) 
     ## Calibration to SK deaths is not performed due to noise.
     if (provinceName == "SK"){
       dd <- dd[dd$var == "report",]
@@ -234,6 +238,7 @@ forecast_province <- function(provinceName,
   #pars[["phi1"]] <- coef(calib, "fitted")$params["phi1"]
   ##The below line does the same thing. Lee, I'm leaving the above three in there so you can see.
   pars[names(coef(calib, "fitted")$params)] <- coef(calib, "fitted")$params
+  pars[paste0("obs_disp", names(coef(calib, "fitted")$nb_disp))] <- coef(calib, "fitted")$nb_disp
   ##Stil don't now why this didn't work.
   #pars <- update(pars, ff$opt_pars$params)
   ##The only thing that changes between scenarios is the time_pars.
