@@ -82,7 +82,7 @@ splitinterval <- function(var){
     ## Remove missing values
     casesdf <- casesdf[!is.na(casesdf[,colselect]),]
     ## Create interval incidence column by differencing 
-    # Discard the first reported entry to align all the columns and keep them the same length, keeping the column for each province as a check to make sure we're doing everything properly.
+    ## Discard the first reported entry to align all the columns and keep them the same length, keeping the column for each province as a check to make sure we're doing everything properly.
     intervalcasesdf <- bind_cols("Date" = casesdf$"Date",
                                  "Province" =  casesdf$"Province",
                                  "Note" = casesdf$"Note",
@@ -124,7 +124,7 @@ pars <- read_params("ICU1.csv")
 calibrate_provinces <- function(good = TRUE){
   goodcalibs <- lapply(names(splitintervalCases), function(provinceName){
     dd <-  bind_rows(splitintervalCases[[provinceName]], splitintervaldeaths[[provinceName]])
-    ##We need to order by date
+    ## We need to order by date
     dd <- dd[order(anytime::anydate(dd$date)),]
     provincereport <- splitintervalCases[[provinceName]]
     ## Use epigrowthfit to estimate R0 and then fix the parameter file for each province to match that estimated rate from the data and setting Gbar = 6
@@ -150,7 +150,7 @@ calibrate_provinces <- function(good = TRUE){
       optpars <- list(params = c(log_E0 = loginit_e0, log_beta0 = -1))
     }
     ## Parameters to be optimized are based on the calibration to Ontario by Michael Li in 
-    # https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
+    ## https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
     ## Calibration to SK deaths is not performed due to noise.
     if (provinceName == "SK"){
       dd <- dd[dd$var == "report",]
@@ -164,7 +164,7 @@ calibrate_provinces <- function(good = TRUE){
               data = dd,
               debug_plot = FALSE,
               ## sim_args below based on the calibration to Ontario in 
-              # https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
+              ## https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
               sim_args = list(ndt = 1, ratemat_args = list(testing_time = "report")),
               time_args = list(break_dates = NULL),
               opt_pars = optpars)
@@ -173,12 +173,12 @@ calibrate_provinces <- function(good = TRUE){
   return(goodcalibs)
 }
 
-##Add our bad calibs.
-##Save a calibration so we don't have to run it again to get the same results.
+## Add our bad calibs.
+## Save a calibration so we don't have to run it again to get the same results.
 savecalibs <- function(){
   saveRDS(goodcalibs, "calibs.rds")
 }
-##Load a calibration that we saved using the filename above. Make sure calibs.rds is in your working directory.
+## Load a calibration that we saved using the filename above. Make sure calibs.rds is in your working directory.
 loadcalibs <- function(){
   return(readRDS("calibs.rds"))
 }
@@ -212,7 +212,7 @@ loadcalibs <- function(){
 ## lockdown_beta0: relative value of beta0 after lockdown
 ## lockdown_relax: relative value of beta0 after relaxation of lockdown
 ## flu_start: day flu season begins
-### flu_end: day flu season ends
+## flu_end: day flu season ends
 ## relbeta0_peak: largest relative value of beta0 to be reached at peak of flu season
 forecast_province <- function(provinceName, 
                               calibsList = goodcalibs,
@@ -229,21 +229,21 @@ forecast_province <- function(provinceName,
                               travel_start = sd,
                               travel_ban = anytime::anydate("2021-02-15"),
                               travel = 10^(-4)){
-  ##The only thing that changes between scenarios is the time_pars.
+  ## The only thing that changes between scenarios is the time_pars.
   if (scenario == 1){
     ##Status quo
     time_pars <- NULL
   }
   else if (scenario == 2){
-    ##Lockdown then relax six weeks after.
-    ##Six weeks after is Jan 29th, 2021
+    ## Lockdown then relax six weeks after.
+    ## Six weeks after is Jan 29th, 2021
     time_pars <- data.frame(Date=c(sd_ld, ed_ld),
                             Symbol=c("beta0","beta0"),
                             Relative_value=c(lockdown_beta0, lockdown_relax),
                             stringsAsFactors=FALSE)
   }
   else if (scenario == 3){
-    ##Flu + Covid19.
+    ## Flu + Covid19.
       dates <- seq(ymd(flu_start),ymd(flu_end), by="days")
       L <- length(dates)-1
       t <- (pi/L)*seq(0,L)
@@ -254,7 +254,7 @@ forecast_province <- function(provinceName,
                               stringsAsFactors=FALSE)
   }
   else if (scenario == 4){
-    ##Travel Restrictions
+    ## Travel Restrictions
     dates <- seq(ymd(travel_start),ymd(travel_ban), by="days")
     L <- length(dates)-1
     t <- (pi/L)*seq(0,L)
@@ -267,7 +267,7 @@ forecast_province <- function(provinceName,
   }
   else{
   }
-  ##The data is in long form.
+  ## The data is in long form.
   calib <- calibsList[[provinceName]]
   pars <- calib$forecast_args$base_params
   pars[names(coef(calib, "fitted")$params)] <- coef(calib, "fitted")$params
@@ -275,14 +275,14 @@ forecast_province <- function(provinceName,
   sim <- run_sim(pars, start_date = sd, end_date = ed, params_timevar = time_pars)
   return(sim)
 }
-##Plot a calibrated simulation, changing the provinceName to whatever we want it to be..
+## Plot a calibrated simulation, changing the provinceName to whatever we want it to be..
 test_calib_plot <- function(provinceName, calibslist = goodcalibs, reportlist = splitintervalCases, deathlist = splitintervaldeaths, hosplist = splitintervalhosp){
   dd <-  bind_rows(splitintervalCases[[provinceName]], splitintervaldeaths[[provinceName]])
   ##We might need to order by date, so it's safer to.
   dd <- dd[order(anytime::anydate(dd$date)),]
   plot(calibslist[[provinceName]], data = dd, predict_args=list(keep_vars=c("report", "death")))
 }
-##Test a forecast by plotting it on the same graph as the observed report data and the calibrate to it.
+## Test a forecast by plotting it on the same graph as the observed report data and the calibrate to it.
 test_forecast_plot <- function(provinceName, sim = forecast_province(provinceName), justdeaths  = FALSE){
   if (justdeaths){
     ##Plot just deaths, fixes scale.
@@ -292,7 +292,7 @@ test_forecast_plot <- function(provinceName, sim = forecast_province(provinceNam
       ##           mapping = aes(x = date, y = value)) 
   }
   else{
-    ##Plot everything.
+    ## Plot everything.
     plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "H", "hosp", "foi"), show_times = FALSE) 
     ##+
     #geom_point(data = splitintervalCases[[provinceName]],
