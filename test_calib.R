@@ -6,7 +6,9 @@
 
 library("dplyr") # For nice data frame manipulation
 
-library("tidyr") # To convert data between short and long form.
+library("cowplot") # To display multiple plots on the same panel.
+
+library("directlabels") # To use direct labels instead of a legend.
 
 library("anytime") # Date/Time manipulation
 
@@ -233,6 +235,7 @@ forecast_province <- function(provinceName,
                               relbeta0_peak = 1.2,
                               travel_start = sd,
                               travel_ban = anytime::anydate("2021-02-15"),
+                              ##1+ travel is the maximum relative value of N.
                               travel = 10^(-4)){
   ## The only thing that changes between scenarios is the time_pars.
   if (scenario == 1){
@@ -260,11 +263,11 @@ forecast_province <- function(provinceName,
   }
   else if (scenario == 4){
     ## Travel Restrictions
+    ##We pump people into the population by increasing its relative size, then a travel ban stops immigration on that day.
     dates <- seq(ymd(travel_start),ymd(travel_ban), by="days")
     L <- length(dates)-1
     t <- (pi/L)*seq(0,L)
     change_N <- 1 + seq(from = 0, to = travel, by = travel/L)
-    change_N[[length(change_N)]] <- 1
     time_pars <- data.frame(Date=dates,
                             Symbol="N",
                             Relative_value=change_N,
@@ -277,7 +280,7 @@ forecast_province <- function(provinceName,
   pars <- calib$forecast_args$base_params
   pars[names(coef(calib, "fitted")$params)] <- coef(calib, "fitted")$params
   pars[paste0("obs_disp", names(coef(calib, "fitted")$nb_disp))] <- coef(calib, "fitted")$nb_disp
-  sim <- run_sim(pars, start_date = sd, end_date = ed, params_timevar = time_pars)
+  sim <- run_sim(pars, start_date = anytime::anydate("2020-08-15"), end_date = ed, params_timevar = time_pars)
   return(sim)
 }
 ## Plot a calibrated simulation, changing the provinceName to whatever we want it to be..
@@ -288,22 +291,76 @@ test_calib_plot <- function(provinceName, calibslist = goodcalibs, reportlist = 
   plot(calibslist[[provinceName]], data = dd, predict_args=list(keep_vars=c("report", "death")))
 }
 ## Test a forecast by plotting it on the same graph as the observed report data and the calibrate to it.
-test_forecast_plot <- function(provinceName, sim = forecast_province(provinceName), justdeaths  = FALSE){
-  if (justdeaths){
+forecast_plot <- function(provinceName, sim = forecast_province(provinceName), var  = "report", multiscenario = FALSE){
+  if (multiscenario){
+    if (var == "death" || var == "deaths"){
+      p <- ggplot(data = sim, mapping = aes(x = date, y = death, colour = relbeta0)) + geom_point(size = 0.1)
+      p <-  direct.label(p)
+    }
+    else{
+      p <- ggplot(data = sim, mapping = aes(x = date, y = report, colour = relbeta0)) + geom_point(size = 0.1)
+      p <-  direct.label(p)
+    }
+  }
+  else if (var == "death" || var == "deaths"){
     ##Plot just deaths, fixes scale.
-    plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "report", "H", "hosp", "foi"), show_times = FALSE) 
-    ##+
-     ## geom_point(data = splitintervaldeaths[[provinceName]],
-      ##           mapping = aes(x = date, y = value)) 
+    p <- plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "report", "H", "hosp", "foi"), show_times = FALSE) 
+   }
+  else {
+   p <- plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "H", "hosp", "death", "foi"), show_times = FALSE) 
   }
-  else{
-    ## Plot everything.
-    plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "H", "hosp", "foi"), show_times = FALSE) 
-    ##+
-    #geom_point(data = splitintervalCases[[provinceName]],
-  ##             mapping = aes(x = date, y = value)) +
- ##   geom_point(data = splitintervaldeaths[[provinceName]],
-           ##      mapping = aes(x = date, y = value)) 
-  }
+  p <- p + theme(legend.position = "none") + labs(x = "Date", y = "Daily count")
+  return(p)
 }
 
+panel_plot <- function(scenario = 1, var = "report", calibsList = goodcalibs){
+  if (scenario == 1){
+    plots <- lapply(toKeep, function(provinceName){
+      forecast_plot(provinceName, sim = forecast_province(provinceName, calibsList = goodcalibs, scenario = scenario), var)
+    })
+  }
+  else if (scenario == 2){
+    plots <- lapply(toKeep, function(provinceName){
+      beta0s <- seq(from = 0.2, to = 0.8, by = 0.2)
+      allforecasts <- data.frame()
+      for (relbeta0 in beta0s){
+        theforecast <- forecast_province(provinceName, calibsList = goodcalibs, scenario = scenario, lockdown_beta0 = relbeta0)
+        theforecast$relbeta0 <- relbeta0
+        allforecasts <- bind_rows(allforecasts, theforecast)
+        ##Type appropriately.
+        class(allforecasts) <- c("pansim", "data.frame")
+      }
+      forecast_plot(provinceName, sim = allforecasts, var, multiscenario = TRUE)
+      })
+  }
+  else if (scenario == 3){
+    plots <- lapply(toKeep, function(provinceName){
+      beta0peaks <- 1 + seq(from = 0, to = 2, by = 0.2)
+      allforecasts <- data.frame()
+      for (beta0peak in beta0peaks){
+        theforecast <- forecast_province(provinceName, calibsList = goodcalibs, scenario = scenario, relbeta0_peak = beta0peak)
+        theforecast$relbeta0 <- beta0peak
+        allforecasts <- bind_rows(allforecasts, theforecast)
+        ##Type appropriately.
+        class(allforecasts) <- c("pansim", "data.frame")
+      }
+      forecast_plot(provinceName, sim = allforecasts, var, multiscenario = TRUE)
+    })
+  }
+  else{
+    ##Scenario = 4
+    plots <- lapply(toKeep, function(provinceName){
+      travel <- c(10^(-4), 10^(-5), 10^(-1.5))
+      allforecasts <- data.frame()
+      for (travelamt in travel){
+        theforecast <- forecast_province(provinceName, calibsList = goodcalibs, scenario = scenario, travel = travelamt)
+        theforecast$relbeta0 <- travelamt
+        allforecasts <- bind_rows(allforecasts, theforecast)
+        ##Type appropriately.
+        class(allforecasts) <- c("pansim", "data.frame")
+      }
+      forecast_plot(provinceName, sim = allforecasts, var, multiscenario = TRUE)
+    })
+  }
+  plot_grid(plotlist = plots, labels = toKeep, label_fontface = "plain")
+}
