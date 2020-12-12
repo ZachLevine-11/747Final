@@ -6,6 +6,8 @@
 
 library("dplyr") # For nice data frame manipulation
 
+library("tidyr") # To convert data between short and long form.
+
 library("anytime") # Date/Time manipulation
 
 library("lubridate") # Date/Time manipulation
@@ -212,12 +214,11 @@ loadcalibs <- function(){
 # flu_start: day flu season begins
 # flu_end: day flu season ends
 # relbeta0_peak: largest relative value of beta0 to be reached at peak of flu season
-
 forecast_province <- function(provinceName, 
                               calibsList = goodcalibs,
-                              sd = anytime::anydate("2020-08-01"),
-                              ed = anytime::anydate("2021-12-18"),
                               scenario = 1,
+                              sd = anytime::anydate("2020-08-15"),
+                              ed = anytime::anydate("2021-12-31"),
                               sd_ld = anytime::anydate("2020-12-18"), 
                               ed_ld = anytime::anydate("2021-01-29"), 
                               lockdown_beta0 = 0.5,
@@ -229,18 +230,6 @@ forecast_province <- function(provinceName,
                               phi2_2 = 0.5,
                               isom_init = 500000,
                               isos_init = 700000){
-  calib <- calibsList[[provinceName]]
-  ff <- calib$forecast_args
-  pars <- ff$base_params
-  ##Do these manually I guess.
-  #pars[["E0"]] <- coef(calib, "fitted")$params["E0"]
-  #pars[["beta0"]] <- coef(calib, "fitted")$params["beta0"]
-  #pars[["phi1"]] <- coef(calib, "fitted")$params["phi1"]
-  ##The below line does the same thing. Lee, I'm leaving the above three in there so you can see.
-  pars[names(coef(calib, "fitted")$params)] <- coef(calib, "fitted")$params
-  pars[paste0("obs_disp", names(coef(calib, "fitted")$nb_disp))] <- coef(calib, "fitted")$nb_disp
-  ##Stil don't now why this didn't work.
-  #pars <- update(pars, ff$opt_pars$params)
   ##The only thing that changes between scenarios is the time_pars.
   if (scenario == 1){
     ##Status quo
@@ -274,6 +263,11 @@ forecast_province <- function(provinceName,
   }
   else{
   }
+  ##The data is in long form.
+  calib <- calibsList[[provinceName]]
+  pars <- calib$forecast_args$base_params
+  pars[names(coef(calib, "fitted")$params)] <- coef(calib, "fitted")$params
+  pars[paste0("obs_disp", names(coef(calib, "fitted")$nb_disp))] <- coef(calib, "fitted")$nb_disp
   sim <- run_sim(pars, start_date = sd, end_date = ed, params_timevar = time_pars)
   return(sim)
 }
@@ -285,7 +279,20 @@ test_calib_plot <- function(provinceName, calibslist = goodcalibs, reportlist = 
   plot(calibslist[[provinceName]], data = dd, predict_args=list(keep_vars=c("report", "death")))
 }
 ##Test a forecast by plotting it on the same graph as the observed report data and the calibrate to it.
-test_forecast_plot <- function(provinceName, sim = forecast_province(provinceName)){
-  plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "H"), show_times = FALSE)
+test_forecast_plot <- function(provinceName, sim = forecast_province(provinceName), justdeaths  = FALSE){
+  if (justdeaths){
+    ##Plot just deaths, fixes scale.
+    plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "report", "H", "hosp", "foi"), show_times = FALSE) +
+      geom_point(data = splitintervaldeaths[[provinceName]],
+                 mapping = aes(x = date, y = value)) 
+  }
+  else{
+    ##Plot everything.
+    plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "H", "hosp", "foi"), show_times = FALSE) +
+    geom_point(data = splitintervalCases[[provinceName]],
+               mapping = aes(x = date, y = value)) +
+    geom_point(data = splitintervaldeaths[[provinceName]],
+                 mapping = aes(x = date, y = value)) 
+  }
 }
 
