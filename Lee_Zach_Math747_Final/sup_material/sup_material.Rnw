@@ -1,0 +1,254 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PHAC 2021 COVID-19 FORECAST REPORT (SUPPLEMENTARY MATERIAL)
+% Analysts: Lee van Brussel & Zachary Levine
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ 
+%--------------------------------------------------------------------------
+%   LaTeX PACKAGES AND OTHER DOCUMENT CONFIGURATIONS
+%--------------------------------------------------------------------------
+
+\documentclass[12pt]{article}
+
+\input{4mbapreamble.tex} % Document formatting
+
+\usepackage{float} % This helps keep figures where you type them
+
+\floatplacement{figure}{H} % Type "H" in figure environment (for float package)
+
+\usepackage{booktabs} % Makes fancy tables
+
+\usepackage{pdfpages} % Allows one to insert a PDF into the document
+
+\begin{document}
+
+%--------------------------------------------------------------------------
+%   SUPPLEMENTARY MATERIAL FOR PHAC REPORT
+%--------------------------------------------------------------------------
+
+\section*{Supplementary Material}
+The following pages contain supplementary material explaining calibration efforts, forecasting methods and additional assumptions for the submitted PHAC 2021 Forecast report.
+
+%--------------------------------------------------------------------------
+%   CALIBRATION METHODS
+%--------------------------------------------------------------------------
+
+\subsection*{Calibration Methods}
+
+\subsubsection*{Setup for Calibration}
+
+Before any forecasting can be done, it is important that critical parameters are calibrated to ensure forecasting accuracy. The calibration process begins by loading the observed data and manipulating it wherever necessary. Due to noise in the eastern provinces and low incidence in the territories, the Canadian data is filtered to contain only BC, AB, SK, MB, ON and QC. The removal of missing values and negative incidence is performed and then the data is converted to long form so that it can be passed to the \texttt{McMasterPandemic} function \texttt{calibrate}.
+
+
+<<include = FALSE>>=
+
+##--------------------------------------------------------------------------
+##   LOADING R PACKAGES
+##--------------------------------------------------------------------------
+
+## Loading Standard R Packages
+
+library("dplyr") # For nice data frame manipulation
+
+library("tidyr") # To convert data between short and long form.
+
+library("anytime") # Date/Time manipulation
+
+library("lubridate") # Date/Time manipulation
+
+library("chron") # Date/Time manipulation
+
+library("ggplot2") # For fancy plots
+
+## Loading Pandemic Modeling Packages
+
+library("epigrowthfit") # For pandemic model parameter estimation
+
+library("McMasterPandemic") # For COVID-19 Pandemic Simulations and Forecasting
+
+##--------------------------------------------------------------------------
+##   LOADING AND MANIPULATING CANADA COVID-19 DATA TO CALIBRATE
+##--------------------------------------------------------------------------
+
+## Keep a copy of the data (mikelidata.csv) and ICU1.csv (the params) in working directory
+
+## Reading in provincial-level COVID-19 data
+
+allcases <- read.csv("mikelidata.csv")
+
+## We focus on provinces with high incidence and minimal noise
+
+## Isolating the provinces of AB, BC, ON, SK, MB, QC
+
+toKeep <- c("AB", "BC", "ON", "SK", "MB", "QC")
+
+allcases <- allcases[allcases$Province %in% toKeep,]
+
+## Setting provincial population sizes to use in calibration (source: StatCan)
+
+pops <- c("AB" = 4421876, 
+          "BC" = 5147712, 
+          "ON" = 14734000, 
+          "SK" = 1178681, 
+          "MB" = 1379263, 
+          "QC" = 8574571)
+
+## Setting start date of calibration. Date signifies rough start of 2nd wave.
+
+startdate <- anytime::anydate("2020-08-15")
+
+## Creating a function to perform the following tasks:
+## 1) Matches real data to model variables (report, deaths and hospitalization)
+## 2) Creates non-negative interval incidence and death columns from cumulative data (hospitalization already recorded as daily count)
+## 3) Removes missing values
+## 4) Converts data to "long form" so that it can be passed to calibrate()
+## 5) Filters data so that it starts at the beginning of the second wave
+
+## Matching real data to model variables
+
+splitinterval <- function(var){
+  if (var == "report"){
+    ## colselect grabs the data from the main data frame and var tells the calibration function what variable the data is.
+    colselect <- "confirmed_positive"
+    var <- "report"
+  }
+  else if (var == "deaths"){
+    colselect <- "deceased"
+    var <- "death"
+  }
+  else{
+    colselect <- "Hospitalization"
+    var <-  "H"
+  }
+  lapply(as.vector(unique(allcases$Province)), function(provinceName){
+    ## Select all the data corresponding to each province
+    casesdf <- allcases[as.vector(allcases$Province) == provinceName,]
+    ## Remove missing values
+    casesdf <- casesdf[!is.na(casesdf[,colselect]),]
+    ## Create interval incidence column by differencing 
+    ## Discard the first reported entry to align all the columns and keep them the same length, keeping the column for each province as a check to make sure we're doing everything properly.
+    intervalcasesdf <- bind_cols("Date" = casesdf$"Date",
+                                 "Province" =  casesdf$"Province",
+                                 "Note" = casesdf$"Note",
+                                 "intervalCases" = c(0, diff(casesdf[,colselect], lag = 1)))
+    ## Removal of negative values
+    intervalcasesdf <- intervalcasesdf[intervalcasesdf$intervalCases >= 0,]
+    ## Converting data to "long form" so that it can be passed to calibrate
+    colnames(intervalcasesdf) <- c("date", "a", "b", "value")
+    intervalcasesdf <- intervalcasesdf[,-c(2,3)]
+    intervalcasesdf$var <- rep(var, nrow(intervalcasesdf))
+    intervalcasesdf$date <- anytime::anydate(intervalcasesdf$date)
+    ## Filtering data to begin at second wave (using startdate)
+    if (provinceName == "MB"){
+      startdate <- anytime::anydate("2020-09-15")
+    }
+    intervalcasesdf <- intervalcasesdf[intervalcasesdf$date >= startdate,]
+    return(intervalcasesdf)
+  })
+}
+
+## Create vectors of observed data.
+
+splitintervalCases <- splitinterval(var = "report")
+splitintervaldeaths <- splitinterval(var = "deaths")
+splitintervalhosp <- splitinterval(var = "hosp")
+
+## Setting the names in the function stops it from returning the list which is what we want, so we'll do it here.
+
+names(splitintervalhosp) <- names(splitintervalCases) <- names(splitintervaldeaths) <- unique(allcases$Province)
+@
+
+\subsubsection*{Original (Bad) Calibration Attempt}
+Calibrations are done province-by-province. We began with setting the correct population size $N$ and optimizing for the initial number of exposed individuals $E_0$ and the initial transmission rate $\beta_0$. The calibration function was also fed an estimated reproduction number $\R_0$ based on the second wave data using the \Rlogo package \texttt{epigrowthfit}. It is clear that after calibration, this is not enough to accurately match the observed data. 
+
+<<include = FALSE>>=
+
+##--------------------------------------------------------------------------
+##   CALIBRATING
+##--------------------------------------------------------------------------
+
+## Reading in preset parameter file from McMasterPandemic
+
+pars <- read_params("ICU1.csv")
+
+## Creation of function calibrate_provinces
+## calibrate_provinces has only one functional argument:
+## 1) good: If good = FALSE, then the original choice of parameters for optimization are run through calibrate(). If good = TRUE, then an updated choice of parameters for optimization are run through calibrate(). These parameter choices were found here:
+## https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
+## The forecast in the PHAC report uses good = TRUE
+
+calibrate_provinces <- function(good = TRUE){
+  goodcalibs <- lapply(names(splitintervalCases), function(provinceName){
+    dd <-  bind_rows(splitintervalCases[[provinceName]], splitintervaldeaths[[provinceName]])
+    ## We need to order by date
+    dd <- dd[order(anytime::anydate(dd$date)),]
+    provincereport <- splitintervalCases[[provinceName]]
+    ## Use epigrowthfit to estimate R0 and then fix the parameter file for each province to match that estimated rate from the data and setting Gbar = 6
+    data(covid_generation_interval)
+    pars <- fix_pars(pars, target = c(R0 = compute_R0(egf(egf_init(date = provincereport$date, cases = provincereport$value)), breaks =  covid_generation_interval$breaks, probs = covid_generation_interval$probs), Gbar = 6))
+    pars <- update(pars, c(N = pops[[provinceName]]))
+    init_e0 <- provincereport$value[[16]] ## 16 chosen to account for report delay
+    if (init_e0 == 0){
+      ## Index = 16 for AB and BC gives zero, use 18 instead
+      loginit_e0 <- log(provincereport$value[[18]])
+    } else if (provinceName == "SK"){
+      ## 2 works very well for SK
+      loginit_e0 <- 2
+    }
+    else{
+      loginit_e0 <- log(init_e0)
+    }
+    if (good){
+      optpars <- list(params = c(log_E0 = loginit_e0, log_beta0 = -1, logit_phi1 = -1), log_nb_disp=c(report=1, death=1, H=1)) 
+      
+    }
+    else{
+      optpars <- list(params = c(log_E0 = loginit_e0, log_beta0 = -1))
+    }
+    ## Parameters to be optimized are based on the calibration to Ontario by Michael Li in 
+    ## https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
+    ## Calibration to SK deaths is not performed due to noise.
+    if (provinceName == "SK"){
+      dd <- dd[dd$var == "report",]
+    }
+    else{
+    }
+    ## Print which province is currently being calibrated
+    print(paste0("now calibrating ", provinceName))
+    ## Calibration of all provinces
+    calibrate(base_params = pars,
+              data = dd,
+              debug_plot = FALSE,
+              ## sim_args below based on the calibration to Ontario in 
+              ## https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
+              sim_args = list(ndt = 1, ratemat_args = list(testing_time = "report")),
+              time_args = list(break_dates = NULL),
+              opt_pars = optpars)
+  })
+  names(goodcalibs) <- names(splitintervalCases)
+  return(goodcalibs)
+}
+
+## Save a calibration so we don't have to run it again to get the same results.
+
+savecalibs <- function(){
+  saveRDS(goodcalibs, "calibs.rds")
+}
+## Load a calibration that we saved using the filename above. Make sure calibs.rds is in your working directory.
+
+loadcalibs <- function(){
+  return(readRDS("calibs.rds"))
+}
+
+@
+
+<<echo = FALSE>>=
+## PANEL OF BAD CALIBRATION PLOTS GOES HERE
+@
+
+%% Additional commenting on the bad fits.
+
+\subsubsection*{Updated Calibration Method Used for PHAC Report}
+
+One of the main issues with the original parameter calibration is that it does not take into consideration the noise in the observed data. To rectify this, it was found that the function \texttt{calibrate} can \url{https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R}
+
+\end{document}

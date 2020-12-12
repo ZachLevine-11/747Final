@@ -1,0 +1,98 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% PHAC 2021 COVID-19 FORECAST REPORT
+% Analysts: Lee van Brussel & Zachary Levine
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ 
+%--------------------------------------------------------------------------
+%   LaTeX PACKAGES AND OTHER DOCUMENT CONFIGURATIONS
+%--------------------------------------------------------------------------
+
+\documentclass[12pt]{article}
+
+\input{4mbapreamble.tex} % Document formatting
+
+\usepackage{float} % This helps keep figures where you type them
+
+\floatplacement{figure}{H} % Type "H" in figure environment (for float package)
+
+\usepackage{booktabs} % Makes fancy tables
+
+\usepackage{pdfpages} % Allows one to insert a PDF into the document
+
+%--------------------------------------------------------------------------
+%   COVER LETTER
+%--------------------------------------------------------------------------
+
+\begin{document}
+
+\includepdf[pages=-]{coverletter/coverletter.pdf} % Inserts cover letter
+
+\newpage
+
+%--------------------------------------------------------------------------
+%   TITLE CREATION & TOC
+%--------------------------------------------------------------------------
+
+\begin{titlepage}
+
+\newcommand{\HRule}{\rule{\linewidth}{0.5mm}} 
+
+\center
+
+\textsc{\LARGE Public Health Agency of Canada}\\[0.5em]
+\includegraphics[scale=0.08]{images/phacflag.png}\\[1.5cm] % Flag graphic
+\HRule \\[0.4cm]
+{ \huge \bfseries A COVID-19 Forecast for the \\[0.3em] Year 2021 in Canada}\\[0.4cm]
+\HRule \\[1.5cm]
+\vfill
+\begin{minipage}{0.5\textwidth}
+\begin{center}
+Analysis by:\\
+\large
+Zachary \textsc{Levine} \& Lee \textsc{van Brussel}
+\end{center}
+\end{minipage}\\[4cm]
+\end{titlepage}
+\newpage
+\pagenumbering{arabic} % Starts page numbering after cover letter
+\tableofcontents
+\newpage
+
+%--------------------------------------------------------------------------
+%   R PACKAGE LOADING AND COVID-19 CALIBRATION (R CODE)
+%--------------------------------------------------------------------------
+
+%--------------------------------------------------------------------------
+%   FORECASTING (R CODE)
+%--------------------------------------------------------------------------
+
+
+%--------------------------------------------------------------------------
+%   EXECUTIVE SUMMARY
+%--------------------------------------------------------------------------
+\section{Executive Summary}
+Summary of results goes here.
+
+%--------------------------------------------------------------------------
+%   RESULT ANALYSIS
+%--------------------------------------------------------------------------
+\section{Analysis of Results}
+Analysis of results goes here.
+
+\subsection{Scenario 1: No Intervention}
+Analysis of scenario 1 goes here.
+
+\subsection{Scenario 2: Lockdown}
+Analysis of scenario 2 goes here.
+
+\subsection{Scenario 3: ICU Overflow}
+Analysis of scenario 3 goes here.
+
+\subsection{Scenario 4: TBA}
+Analysis of scenario 4 goes here.
+
+%--------------------------------------------------------------------------
+%   END OF PHAC REPORT
+%--------------------------------------------------------------------------
+
+\end{document}

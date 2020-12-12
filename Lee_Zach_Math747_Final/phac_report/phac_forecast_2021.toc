@@ -1,0 +1,7 @@
+\babel@toc {english}{}
+\contentsline {section}{\numberline {1}Executive Summary}{2}{section.1}
+\contentsline {section}{\numberline {2}Analysis of Results}{2}{section.2}
+\contentsline {subsection}{\numberline {2.1}Scenario 1: No Intervention}{2}{subsection.2.1}
+\contentsline {subsection}{\numberline {2.2}Scenario 2: Lockdown}{2}{subsection.2.2}
+\contentsline {subsection}{\numberline {2.3}Scenario 3: ICU Overflow}{2}{subsection.2.3}
+\contentsline {subsection}{\numberline {2.4}Scenario 4: TBA}{2}{subsection.2.4}

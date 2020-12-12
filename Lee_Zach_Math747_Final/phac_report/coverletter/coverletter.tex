@@ -1,0 +1,64 @@
+\documentclass[12pt]{letter} 
+
+\usepackage[margin=1in]{geometry}
+
+\usepackage{array}
+
+\usepackage{graphicx}
+
+\usepackage{url}
+
+\begin{document}
+
+
+\date{December 4, 2020}
+
+\signature{Zachary Levine \& Lee van Brussel}           % name for signature 
+\longindentation=0pt                       % needed to get closing flush left
+\let\raggedleft\raggedright                % needed to get date flush left
+ 
+\begin{letter}{
+Iain Stewart\\
+Public Health Agency of Canada\\
+130 Colonnade Road\\
+A.L. 6501H\\
+Ottawa, Ontario\\
+K1A 0K0}
+
+\includegraphics[scale=0.08]{coverletter/mac.png}
+\begin{center}
+{\large\bf {Zachary Levine}}\textsuperscript{\textdagger} {\large\bf{\&}} {\large\bf{Lee van Brussel}}\textsuperscript{\textdagger\textdagger}
+\end{center}
+\medskip\hrule height 0.8pt
+\begin{center}
+{McMaster University, Department of Mathematics \& Statistics\\ 
+Hamilton Hall, Room 218, 1280 Main Street West, Hamilton, ON, L8S 4K1, CA \\  
+{\url{levinez@mcmaster.ca}}\textsuperscript{\textdagger}, {\url{vanbrulw@mcmaster.ca}}\textsuperscript{\textdagger\textdagger}}
+\end{center}  % forces letterhead to top of page
+
+\opening{Dear Mr. Stewart,} 
+We would first like to express our sincere appreciation in trusting us with your task of forecasting the COVID-19 pandemic in Canada for the year 2021. We recognize how important this work is to ensure the safety of the Canadian public and are honoured to be involved.
+
+As per your request in our earlier discussions, our team has analyzed the COVID-19 data for each province in an attempt to determine the feasibility of province-by-province forecasts for the entire year of 2021 under the following four scenarios:
+\begin{enumerate}
+\item No government interventions are executed,
+\item Strict lockdown measures are enforced in all of Canada on December 18, 2020 and relaxed six weeks later,
+\item A surge of ICU patients are admitted on January 15, 2021,
+\item Strict social distancing protocols are put in place on December 18, 2020 and relaxed six weeks later.
+\end{enumerate}
+Unfortunately,  the team has concluded that the data currently available from some provinces are not adequate for forecasting in general. All three territories simply have too little cases of COVID-19 to provide a meaningful forecast, while the data for the Maritime provinces and Newfoundland contain too much noise to make confident predictions. With this, we have not performed any forecasts for these provinces to avoid misleading results and focus only on the provinces of Alberta, British Columbia, Manitoba, Ontario, Quebec and Saskatchewan. More over, due to the time frame given to prepare this report, most of the initial parameter estimates are uniformly applied across all provinces considered. Ideally, these parameters would be carefully studied and tailored to reflect the current state of each region to optimize forecasting accuracy. Finally, to ensure transparency and appropriate expectations, we outline a brief summary of the approved assumptions and prediction delivery methods for the four scenarios mentioned above.\\
+
+The primary focus of each scenario is to observe the change in dynamics for reported incidence of COVID-19. In the Canada-wide lockdown scenario, it is assumed that a lockdown acts through an effective reduction in the transmission rate of the virus. Thus, the `stricter' the lockdown is, the lower the transmission rate is reduced. To observe the effects of lowering the transmission rate for six weeks,  several simulations are performed with variety of different rate reductions for each province and then are plotted together for easy comparison.  
+
+
+Once again, we thank you for giving us the opportunity to aid our country in the best way we know how.
+
+\closing{Sincerely,} 
+ 
+
+ 
+
+\end{letter}
+ 
+
+\end{document}
