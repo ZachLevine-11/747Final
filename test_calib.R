@@ -121,6 +121,12 @@ names(splitintervalhosp) <- names(splitintervalCases) <- names(splitintervaldeat
 
 pars <- read_params("ICU1.csv")
 
+## Creation of function calibrate_provinces
+## calibrate_provinces has only one functional argument:
+## 1) good: If good = FALSE, then the original choice of parameters for optimization are run through calibrate(). If good = TRUE, then an updated choice of parameters for optimization are run through calibrate(). These parameter choices were found here:
+## https://github.com/bbolker/McMasterPandemic/blob/master/ontario/Ontario_current.R
+## The forecast in the PHAC report uses good = TRUE
+
 calibrate_provinces <- function(good = TRUE){
   goodcalibs <- lapply(names(splitintervalCases), function(provinceName){
     dd <-  bind_rows(splitintervalCases[[provinceName]], splitintervaldeaths[[provinceName]])
