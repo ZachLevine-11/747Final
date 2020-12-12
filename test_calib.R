@@ -1,6 +1,6 @@
-#--------------------------------------------------------------------------
-#   LOADING R PACKAGES
-#--------------------------------------------------------------------------
+##--------------------------------------------------------------------------
+##   LOADING R PACKAGES
+##--------------------------------------------------------------------------
 
 ## Loading Standard R Packages
 
@@ -22,9 +22,9 @@ library("epigrowthfit") # For pandemic model parameter estimation
 
 library("McMasterPandemic") # For COVID-19 Pandemic Simulations and Forecasting
 
-#--------------------------------------------------------------------------
-#   LOADING AND MANIPULATING CANADA COVID-19 DATA TO CALIBRATE
-#--------------------------------------------------------------------------
+##--------------------------------------------------------------------------
+##   LOADING AND MANIPULATING CANADA COVID-19 DATA TO CALIBRATE
+##--------------------------------------------------------------------------
 
 ## Keep a copy of the data (mikelidata.csv) and ICU1.csv (the params) in working directory
 
@@ -54,11 +54,11 @@ pops <- c("AB" = 4421876,
 startdate <- anytime::anydate("2020-08-15")
 
 ## Creating a function to perform the following tasks:
-# 1) Matches real data to model variables (report, deaths and hospitalization)
-# 2) Creates non-negative interval incidence and death columns from cumulative data (hospitalization already recorded as daily count)
-# 3) Removes missing values
-# 4) Converts data to "long form" so that it can be passed to calibrate()
-# 5) Filters data so that it starts at the beginning of the second wave
+## 1) Matches real data to model variables (report, deaths and hospitalization)
+## 2) Creates non-negative interval incidence and death columns from cumulative data (hospitalization already recorded as daily count)
+## 3) Removes missing values
+## 4) Converts data to "long form" so that it can be passed to calibrate()
+## 5) Filters data so that it starts at the beginning of the second wave
 
 ## Matching real data to model variables
 
@@ -113,9 +113,9 @@ splitintervalhosp <- splitinterval(var = "hosp")
 
 names(splitintervalhosp) <- names(splitintervalCases) <- names(splitintervaldeaths) <- unique(allcases$Province)  
 
-#--------------------------------------------------------------------------
-#   CALIBRATING
-#--------------------------------------------------------------------------
+##--------------------------------------------------------------------------
+##   CALIBRATING
+##--------------------------------------------------------------------------
 
 ## Reading in preset parameter file from McMasterPandemic
 
@@ -183,37 +183,37 @@ loadcalibs <- function(){
   return(readRDS("calibs.rds"))
 }
 
-#--------------------------------------------------------------------------
-#   FORECAST FUNCTION WITH SCENARIOS
-#--------------------------------------------------------------------------
+##--------------------------------------------------------------------------
+##   FORECAST FUNCTION WITH SCENARIOS
+##--------------------------------------------------------------------------
 
 ## Creation of a forecasting function "forecast_province" with the following arguments
-# 1) Name of province to forecast
-# 2) Start date of forecast
-# 3) End date of forecast
-# 4) Scenario number (see comment below for details)
-# 5) List of calibrations
+## 1) Name of province to forecast
+## 2) Start date of forecast
+## 3) End date of forecast
+## 4) Scenario number (see comment below for details)
+## 5) List of calibrations
 
 ## There are four scenarios to choose from
-# scenario = 1: No government intervention (status quo is maintained)
-# scenario = 2: Strict lockdown imposed in Canada on December 18th, 2020, and then relaxed six weeks later
-# scenario = 3: ICUs fill up on Jan 15th (a month into the simulation), and then clear exactly a month later
-# scenario = 4: Flu season affecting savarity of symptoms
+## scenario = 1: No government intervention (status quo is maintained)
+## scenario = 2: Strict lockdown imposed in Canada on December 18th, 2020, and then relaxed six weeks later
+## scenario = 3: Flu season affecting severity of symptoms
+## scenario = 4: Travel + travel restrictions
 
 ## Function arguments:
 
-# provinceName: choice of province from "BC", "AB", "SK",...etc.
-# calibsList: list of calibrations for all provinces
-# sd: start date of forecast
-# ed: end date of forecast
-# scenario: choose scenario from above list
-# sd_ld: start date of lock down for scenario 1
-# ed_ld: end date of lock down for scenario 1
-# lockdown_beta0: relative value of beta0 after lockdown
-# lockdown_relax: relative value of beta0 after relaxation of lockdown
-# flu_start: day flu season begins
-# flu_end: day flu season ends
-# relbeta0_peak: largest relative value of beta0 to be reached at peak of flu season
+## provinceName: choice of province from "BC", "AB", "SK",...etc.
+## calibsList: list of calibrations for all provinces
+## sd: start date of forecast
+## ed: end date of forecast
+## scenario: choose scenario from above list
+## sd_ld: start date of lock down for scenario 1
+## ed_ld: end date of lock down for scenario 1
+## lockdown_beta0: relative value of beta0 after lockdown
+## lockdown_relax: relative value of beta0 after relaxation of lockdown
+## flu_start: day flu season begins
+### flu_end: day flu season ends
+## relbeta0_peak: largest relative value of beta0 to be reached at peak of flu season
 forecast_province <- function(provinceName, 
                               calibsList = goodcalibs,
                               scenario = 1,
@@ -226,10 +226,9 @@ forecast_province <- function(provinceName,
                               flu_start = anytime::anydate("2021-01-10"),
                               flu_end = anytime::anydate("2021-04-01"),
                               relbeta0_peak = 1.2,
-                              phi2_1 = 0.1,
-                              phi2_2 = 0.5,
-                              isom_init = 500000,
-                              isos_init = 700000){
+                              travel_start = sd,
+                              travel_ban = anytime::anydate("2021-02-15"),
+                              travel = 10^(-4)){
   ##The only thing that changes between scenarios is the time_pars.
   if (scenario == 1){
     ##Status quo
@@ -244,21 +243,26 @@ forecast_province <- function(provinceName,
                             stringsAsFactors=FALSE)
   }
   else if (scenario == 3){
-    ##ICU's fill up and then clear exactly a month later.
-    time_pars <- data.frame(Date=c("2020-01-15", "2021-02-15"),
-                            Symbol=c("phi2", "phi2"),
-                            Relative_value=c(phi2_1, phi2_2),
-                            stringsAsFactors=FALSE)
+    ##Flu + Covid19.
+      dates <- seq(ymd(flu_start),ymd(flu_end), by="days")
+      L <- length(dates)-1
+      t <- (pi/L)*seq(0,L)
+      change_beta0 <- (relbeta0_peak-1)*sin(t)+1
+      time_pars <- data.frame(Date=dates,
+                              Symbol="beta0",
+                              Relative_value=change_beta0,
+                              stringsAsFactors=FALSE)
   }
   else if (scenario == 4){
-    ## Flu & Covid
-    dates <- seq(ymd(flu_start),ymd(flu_end), by="days")
+    ##Travel Restrictions
+    dates <- seq(ymd(travel_start),ymd(travel_ban), by="days")
     L <- length(dates)-1
     t <- (pi/L)*seq(0,L)
-    change_beta0 <- (relbeta0_peak-1)*sin(t)+1
+    change_N <- 1 + seq(from = 0, to = travel, by = travel/L)
+    change_N[[length(change_N)]] <- 1
     time_pars <- data.frame(Date=dates,
-                            Symbol="beta0",
-                            Relative_value=change_beta0,
+                            Symbol="N",
+                            Relative_value=change_N,
                             stringsAsFactors=FALSE)
   }
   else{
@@ -282,17 +286,19 @@ test_calib_plot <- function(provinceName, calibslist = goodcalibs, reportlist = 
 test_forecast_plot <- function(provinceName, sim = forecast_province(provinceName), justdeaths  = FALSE){
   if (justdeaths){
     ##Plot just deaths, fixes scale.
-    plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "report", "H", "hosp", "foi"), show_times = FALSE) +
-      geom_point(data = splitintervaldeaths[[provinceName]],
-                 mapping = aes(x = date, y = value)) 
+    plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "report", "H", "hosp", "foi"), show_times = FALSE) 
+    ##+
+     ## geom_point(data = splitintervaldeaths[[provinceName]],
+      ##           mapping = aes(x = date, y = value)) 
   }
   else{
     ##Plot everything.
-    plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "H", "hosp", "foi"), show_times = FALSE) +
-    geom_point(data = splitintervalCases[[provinceName]],
-               mapping = aes(x = date, y = value)) +
-    geom_point(data = splitintervaldeaths[[provinceName]],
-                 mapping = aes(x = date, y = value)) 
+    plot(sim, drop_states = c("S", "R", "I", "cumRep", "E", "X", "D", "incidence", "ICU", "H", "hosp", "foi"), show_times = FALSE) 
+    ##+
+    #geom_point(data = splitintervalCases[[provinceName]],
+  ##             mapping = aes(x = date, y = value)) +
+ ##   geom_point(data = splitintervaldeaths[[provinceName]],
+           ##      mapping = aes(x = date, y = value)) 
   }
 }
 
