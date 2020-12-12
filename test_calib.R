@@ -179,7 +179,6 @@ calibrate_provinces <- function(good = TRUE){
   return(goodcalibs)
 }
 
-## Add our bad calibs.
 ## Save a calibration so we don't have to run it again to get the same results.
 savecalibs <- function(){
   saveRDS(goodcalibs, "calibs.rds")
